@@ -1,0 +1,1008 @@
+
+--=================================================
+-- MS STOREN V1 - COMPACT ULTIMATE PANEL
+-- FULL MERGED VERSION
+-- ONE LOCAL SCRIPT
+--=================================================
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- ASSETS
+local BG_IMAGE = "rbxassetid://105232558442634"
+local HOME_IMAGE = "rbxassetid://121041620577917"
+local INTRO_IMAGE = "rbxassetid://120820682509222"
+local INTRO_SOUND = "rbxassetid://99936497230394"
+
+-- SETTINGS
+local HITBOX_SIZE = Vector3.new(30, 30, 30)
+local HITBOX_NAME = "Hitbox expender by epiclnfantry"
+
+local REPAIR_RANGE = 14
+local REPAIR_INTERVAL = 0.25
+
+local PUSH_RANGE = 30
+local PUSH_INTERVAL = 0.1
+local PUSH_COOLDOWN = 0.3
+
+local DEFAULT_SPEED = 19
+local BONUS_SPEED = 5
+
+local RED = Color3.fromRGB(225, 25, 35)
+local WHITE = Color3.fromRGB(255, 255, 255)
+local BLACK = Color3.fromRGB(12, 12, 15)
+local DARK = Color3.fromRGB(24, 24, 28)
+
+-- STATE
+local State = {
+    Runner = false,
+    Bomber = false,
+    Cuirassier = false,
+    Zapper = false,
+    Hitbox = false,
+    Repair = false,
+    AutoPush = false,
+    Music = false,
+    Speed = false,
+    Callout = false
+}
+
+local zombieHighlights = {}
+local trackedNPCs = {}
+local lastPush = {}
+
+local speedConnection
+local lastSpeed = DEFAULT_SPEED
+local internalSpeedChange = false
+
+local Character
+local Humanoid
+local RootPart
+
+local function updateCharacter(character)
+    Character = character
+    Humanoid = character:WaitForChild("Humanoid", 10)
+    RootPart = character:WaitForChild("HumanoidRootPart", 10)
+end
+
+if Player.Character then
+    task.spawn(updateCharacter, Player.Character)
+end
+
+Player.CharacterAdded:Connect(function(character)
+    task.spawn(updateCharacter, character)
+end)
+
+-- CLEAN OLD GUI
+for _, name in ipairs({
+    "MS_Storen_Menu",
+    "MS_Storen_Intro"
+}) do
+    local old = PlayerGui:FindFirstChild(name)
+    if old then
+        old:Destroy()
+    end
+end
+
+-- INTRO
+local intro = Instance.new("ScreenGui")
+intro.Name = "MS_Storen_Intro"
+intro.IgnoreGuiInset = true
+intro.ResetOnSpawn = false
+intro.DisplayOrder = 999
+intro.Parent = PlayerGui
+
+local introImage = Instance.new("ImageLabel")
+introImage.Size = UDim2.fromScale(1, 1)
+introImage.BackgroundColor3 = BLACK
+introImage.BackgroundTransparency = 1
+introImage.Image = INTRO_IMAGE
+introImage.ScaleType = Enum.ScaleType.Stretch
+introImage.Parent = intro
+
+local introSound = Instance.new("Sound")
+introSound.SoundId = INTRO_SOUND
+introSound.Volume = 3
+introSound.Parent = intro
+introSound:Play()
+
+task.spawn(function()
+    task.wait(1.5)
+
+    if not intro.Parent then
+        return
+    end
+
+    introSound:Stop()
+
+    local fade = TweenService:Create(
+        introImage,
+        TweenInfo.new(
+            0.7,
+            Enum.EasingStyle.Quad,
+            Enum.EasingDirection.Out
+        ),
+        {
+            ImageTransparency = 1,
+            BackgroundTransparency = 1
+        }
+    )
+
+    fade:Play()
+    fade.Completed:Wait()
+
+    if intro.Parent then
+        intro:Destroy()
+    end
+end)
+
+-- MAIN GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "MS_Storen_Menu"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = PlayerGui
+
+local function corner(object, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = object
+end
+
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.fromOffset(280, 300)
+main.Position = UDim2.new(0.5, -140, 0.5, -150)
+main.BackgroundColor3 = BLACK
+main.BorderSizePixel = 0
+main.ClipsDescendants = true
+main.Parent = gui
+corner(main, 10)
+
+local background = Instance.new("ImageLabel")
+background.Name = "Background"
+background.Size = UDim2.fromScale(1, 1)
+background.BackgroundTransparency = 1
+background.Image = BG_IMAGE
+background.ImageTransparency = 0.25
+background.ScaleType = Enum.ScaleType.Stretch
+background.Parent = main
+
+local title = Instance.new("Frame")
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 42)
+title.BackgroundColor3 = BLACK
+title.BackgroundTransparency = 0.15
+title.BorderSizePixel = 0
+title.Parent = main
+
+local home = Instance.new("ImageLabel")
+home.Size = UDim2.fromOffset(25, 25)
+home.Position = UDim2.fromOffset(8, 8)
+home.BackgroundTransparency = 1
+home.Image = HOME_IMAGE
+home.ImageColor3 = WHITE
+home.Parent = title
+
+local titleText = Instance.new("TextLabel")
+titleText.Position = UDim2.fromOffset(39, 0)
+titleText.Size = UDim2.new(1, -42, 1, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "MS STOREN V1"
+titleText.TextColor3 = WHITE
+titleText.TextSize = 13
+titleText.Font = Enum.Font.GothamBold
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Parent = title
+
+local scroll = Instance.new("ScrollingFrame")
+scroll.Name = "Functions"
+scroll.Position = UDim2.fromOffset(6, 47)
+scroll.Size = UDim2.new(1, -12, 1, -53)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 2
+scroll.ScrollBarImageColor3 = RED
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.CanvasSize = UDim2.new()
+scroll.Parent = main
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 3)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = scroll
+
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 2)
+padding.PaddingBottom = UDim.new(0, 5)
+padding.Parent = scroll
+
+local order = 0
+
+local function section(name)
+    order += 1
+
+    local frame = Instance.new("Frame")
+    frame.Name = name .. "_Section"
+    frame.Size = UDim2.new(1, -3, 0, 23)
+    frame.BackgroundColor3 = WHITE
+    frame.BackgroundTransparency = 0.08
+    frame.BorderSizePixel = 0
+    frame.LayoutOrder = order
+    frame.Parent = scroll
+    corner(frame, 5)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 1, 0)
+    label.Position = UDim2.fromOffset(5, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "— " .. name .. " —"
+    label.TextColor3 = RED
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 11
+    label.Parent = frame
+end
+
+local function toggle(name, callback)
+    order += 1
+
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.new(1, -3, 0, 30)
+    button.BackgroundColor3 = BLACK
+    button.BorderSizePixel = 0
+    button.Text = ""
+    button.AutoButtonColor = false
+    button.LayoutOrder = order
+    button.Parent = scroll
+    corner(button, 5)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -60, 1, 0)
+    label.Position = UDim2.fromOffset(8, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = RED
+    label.TextSize = 11
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = button
+
+    local switch = Instance.new("Frame")
+    switch.Size = UDim2.fromOffset(38, 19)
+    switch.Position = UDim2.new(1, -45, 0.5, -9)
+    switch.BackgroundColor3 = Color3.fromRGB(38, 38, 42)
+    switch.BorderSizePixel = 0
+    switch.Parent = button
+    corner(switch, 5)
+
+    local switchText = Instance.new("TextLabel")
+    switchText.Size = UDim2.fromScale(1, 1)
+    switchText.BackgroundTransparency = 1
+    switchText.Text = "OFF"
+    switchText.TextColor3 = WHITE
+    switchText.Font = Enum.Font.GothamBold
+    switchText.TextSize = 9
+    switchText.Parent = switch
+
+    local enabled = false
+
+    local function refresh()
+        label.TextColor3 = enabled and WHITE or RED
+        switch.BackgroundColor3 = enabled
+            and RED
+            or Color3.fromRGB(38, 38, 42)
+
+        switchText.Text = enabled and "ON" or "OFF"
+    end
+
+    button.Activated:Connect(function()
+        enabled = not enabled
+        refresh()
+        callback(enabled)
+    end)
+
+    return button
+end
+
+--=================================================
+-- ZOMBIE ESP
+--=================================================
+
+section("ZOMBIE ESP")
+
+toggle("Runner ESP", function(v)
+    State.Runner = v
+end)
+
+toggle("Bomber ESP", function(v)
+    State.Bomber = v
+end)
+
+toggle("Cuirassier ESP", function(v)
+    State.Cuirassier = v
+end)
+
+toggle("Zapper ESP", function(v)
+    State.Zapper = v
+end)
+
+--=================================================
+-- HITBOX
+--=================================================
+
+section("HITBOX")
+
+local function removeHitboxes()
+    for npc, hitbox in pairs(trackedNPCs) do
+        if hitbox and hitbox.Parent then
+            hitbox:Destroy()
+        end
+
+        trackedNPCs[npc] = nil
+    end
+end
+
+local function setupNPC(npc)
+    if not State.Hitbox
+        or not npc:IsA("Model")
+        or trackedNPCs[npc] then
+        return
+    end
+
+    if Players:GetPlayerFromCharacter(npc) then
+        return
+    end
+
+    local head = npc:FindFirstChild("Head")
+
+    if not head
+        or not head:IsA("BasePart")
+        or npc:FindFirstChild(HITBOX_NAME) then
+        return
+    end
+
+    local hitbox = Instance.new("Part")
+    hitbox.Name = HITBOX_NAME
+    hitbox.Size = HITBOX_SIZE
+    hitbox.Transparency = 1
+    hitbox.CanCollide = false
+    hitbox.CanTouch = false
+    hitbox.CanQuery = true
+    hitbox.Massless = true
+    hitbox.CFrame = head.CFrame
+    hitbox.Parent = npc
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = head
+    weld.Part1 = hitbox
+    weld.Parent = hitbox
+
+    trackedNPCs[npc] = hitbox
+end
+
+toggle("Hitbox Expander", function(v)
+    State.Hitbox = v
+
+    if v then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("Model") then
+                setupNPC(obj)
+            end
+        end
+    else
+        removeHitboxes()
+    end
+end)
+
+Workspace.DescendantAdded:Connect(function(obj)
+    if not State.Hitbox then
+        return
+    end
+
+    if obj:IsA("Model") then
+        task.defer(setupNPC, obj)
+    elseif obj.Name == "Head" then
+        local model = obj:FindFirstAncestorOfClass("Model")
+
+        if model then
+            task.defer(setupNPC, model)
+        end
+    end
+end)
+
+--=================================================
+-- CLASS
+--=================================================
+
+section("CLASS")
+
+-- AUTO REPAIR
+local function getHammer()
+    local character = Player.Character
+    local hammer = character and character:FindFirstChild("Hammer")
+
+    if not hammer then
+        local backpack = Player:FindFirstChild("Backpack")
+        hammer = backpack and backpack:FindFirstChild("Hammer")
+    end
+
+    return hammer
+end
+
+local function getBuildingPosition(building)
+    if building:IsA("BasePart") then
+        return building.Position
+    end
+
+    if building:IsA("Model") then
+        local ok, pivot = pcall(function()
+            return building:GetPivot()
+        end)
+
+        if ok then
+            return pivot.Position
+        end
+    end
+
+    local part = building:FindFirstChildWhichIsA(
+        "BasePart",
+        true
+    )
+
+    return part and part.Position
+end
+
+local function repairNearby()
+    if not State.Repair then
+        return
+    end
+
+    local character = Player.Character
+    local root = character and character:FindFirstChild(
+        "HumanoidRootPart"
+    )
+
+    local hammer = getHammer()
+    local remote = hammer and hammer:FindFirstChild("RemoteEvent")
+    local folder = Workspace:FindFirstChild("Buildings")
+
+    if not root
+        or not remote
+        or not remote:IsA("RemoteEvent")
+        or not folder then
+        return
+    end
+
+    local checked = {}
+
+    local function inspect(building)
+        if checked[building] then
+            return false
+        end
+
+        checked[building] = true
+
+        local health = building:FindFirstChild("BuildingHealth")
+
+        if not health or not health:IsA("NumberValue") then
+            return false
+        end
+
+        local maxHealth = health:GetAttribute("MaxHealth")
+
+        if not maxHealth or health.Value >= maxHealth then
+            return false
+        end
+
+        local position = getBuildingPosition(building)
+
+        if not position
+            or (root.Position - position).Magnitude > REPAIR_RANGE then
+            return false
+        end
+
+        -- Server must validate the repair request.
+        remote:FireServer("Repair", building)
+
+        return true
+    end
+
+    for _, item in ipairs(folder:GetChildren()) do
+        if inspect(item) then
+            return
+        end
+
+        if item:IsA("Folder") then
+            for _, building in ipairs(item:GetChildren()) do
+                if inspect(building) then
+                    return
+                end
+            end
+        end
+    end
+end
+
+toggle("Auto Repair", function(v)
+    State.Repair = v
+end)
+
+task.spawn(function()
+    while gui.Parent do
+        if State.Repair then
+            pcall(repairNearby)
+        end
+
+        task.wait(REPAIR_INTERVAL)
+    end
+end)
+
+-- AUTO PUSH
+local function getPickaxeRemote()
+    local character = Player.Character
+    local pickaxe = character and character:FindFirstChild("Pickaxe")
+
+    if not pickaxe then
+        local backpack = Player:FindFirstChild("Backpack")
+        pickaxe = backpack and backpack:FindFirstChild("Pickaxe")
+    end
+
+    local remote = pickaxe and pickaxe:FindFirstChild("RemoteEvent")
+
+    if remote and remote:IsA("RemoteEvent") then
+        return remote
+    end
+
+    return nil
+end
+
+local function getZombiePart(zombie)
+    return zombie:FindFirstChild("HumanoidRootPart")
+        or zombie:FindFirstChild("Torso")
+        or zombie:FindFirstChild("UpperTorso")
+        or zombie:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function pushZombies()
+    if not State.AutoPush then
+        return
+    end
+
+    local character = Player.Character
+    local root = character and character:FindFirstChild(
+        "HumanoidRootPart"
+    )
+
+    local zombies = Workspace:FindFirstChild("Zombies")
+    local remote = getPickaxeRemote()
+
+    if not root or not zombies or not remote then
+        return
+    end
+
+    local now = os.clock()
+
+    for _, zombie in ipairs(zombies:GetChildren()) do
+        if not zombie:IsA("Model") then
+            continue
+        end
+
+        local part = getZombiePart(zombie)
+
+        if not part then
+            continue
+        end
+
+        local distance = (root.Position - part.Position).Magnitude
+
+        if distance <= PUSH_RANGE then
+            local previous = lastPush[zombie] or 0
+
+            if now - previous >= PUSH_COOLDOWN then
+                lastPush[zombie] = now
+
+                remote:FireServer("StopBraceBlock")
+                remote:FireServer(
+                    "FeedbackStun",
+                    zombie,
+                    part.Position
+                )
+            end
+        end
+    end
+
+    for zombie, timestamp in pairs(lastPush) do
+        if not zombie.Parent or now - timestamp > 10 then
+            lastPush[zombie] = nil
+        end
+    end
+end
+
+toggle("Auto Push", function(v)
+    State.AutoPush = v
+
+    if not v then
+        table.clear(lastPush)
+    end
+end)
+
+task.spawn(function()
+    while gui.Parent do
+        if State.AutoPush then
+            pcall(pushZombies)
+        end
+
+        task.wait(PUSH_INTERVAL)
+    end
+end)
+
+-- AUTO PLAY MUSIC
+_G.MusicianAutoPlay = false
+
+local function HookBeatTracker()
+    local BeatTracker = require(
+        game.ReplicatedStorage.Modules.Gameplay.BeatTracker
+    )
+
+    if _G.BeatTrackerHooked then
+        return
+    end
+
+    _G.BeatTrackerHooked = true
+
+    local oldUpdate = BeatTracker.update
+
+    BeatTracker.update = function(self, dt)
+        local now = tick()
+        local beatHappened = false
+
+        if self.nextBeat < now then
+            beatHappened = true
+        end
+
+        oldUpdate(self, dt)
+
+        if beatHappened and _G.MusicianAutoPlay then
+            task.defer(function()
+                if _G.MusicianAutoPlay
+                    and self.songSource
+                    and self.songSource.IsPlaying then
+
+                    self:hit()
+                end
+            end)
+        end
+    end
+end
+
+local musicHookOK, musicHookError = pcall(HookBeatTracker)
+
+toggle("Auto Play Music", function(v)
+    State.Music = v
+    _G.MusicianAutoPlay = v
+
+    if v and not musicHookOK then
+        warn("BeatTracker hook failed:", musicHookError)
+    end
+end)
+
+--=================================================
+-- PLAYER
+--=================================================
+
+section("PLAYER")
+
+local function setupSpeed(character)
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+
+    if not State.Speed then
+        return
+    end
+
+    local humanoid = character:WaitForChild("Humanoid", 5)
+
+    if not humanoid or not State.Speed then
+        return
+    end
+
+    lastSpeed = humanoid.WalkSpeed
+
+    local function setSpeed(value)
+        internalSpeedChange = true
+        humanoid.WalkSpeed = value
+        lastSpeed = value
+        internalSpeedChange = false
+    end
+
+    if humanoid.WalkSpeed < DEFAULT_SPEED then
+        setSpeed(DEFAULT_SPEED)
+    end
+
+    speedConnection = humanoid:GetPropertyChangedSignal(
+        "WalkSpeed"
+    ):Connect(function()
+        if internalSpeedChange or not State.Speed then
+            return
+        end
+
+        local current = humanoid.WalkSpeed
+
+        if current < DEFAULT_SPEED then
+            setSpeed(DEFAULT_SPEED)
+        elseif current > lastSpeed then
+            setSpeed(current + BONUS_SPEED)
+        else
+            lastSpeed = current
+        end
+    end)
+end
+
+toggle("Auto Speed", function(v)
+    State.Speed = v
+
+    if v and Player.Character then
+        task.spawn(setupSpeed, Player.Character)
+    elseif speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+end)
+
+Player.CharacterAdded:Connect(function(character)
+    if State.Speed then
+        task.spawn(setupSpeed, character)
+    end
+end)
+
+--=================================================
+-- CALLOUT
+--=================================================
+
+section("CALLOUT")
+
+local calloutFrame = Instance.new("Frame")
+calloutFrame.Name = "CalloutFrame"
+calloutFrame.Size = UDim2.fromOffset(170, 245)
+calloutFrame.Position = UDim2.new(0.5, 150, 0.35, 0)
+calloutFrame.BackgroundColor3 = BLACK
+calloutFrame.BorderSizePixel = 0
+calloutFrame.Visible = false
+calloutFrame.Parent = gui
+corner(calloutFrame, 8)
+
+local calloutTitle = Instance.new("TextLabel")
+calloutTitle.Size = UDim2.new(1, 0, 0, 32)
+calloutTitle.BackgroundColor3 = RED
+calloutTitle.Text = "CALLOUT"
+calloutTitle.TextColor3 = WHITE
+calloutTitle.Font = Enum.Font.GothamBold
+calloutTitle.TextSize = 13
+calloutTitle.Parent = calloutFrame
+corner(calloutTitle, 7)
+
+local calloutList = Instance.new("Frame")
+calloutList.Position = UDim2.fromOffset(5, 37)
+calloutList.Size = UDim2.new(1, -10, 1, -42)
+calloutList.BackgroundTransparency = 1
+calloutList.Parent = calloutFrame
+
+local calloutLayout = Instance.new("UIListLayout")
+calloutLayout.Padding = UDim.new(0, 4)
+calloutLayout.Parent = calloutList
+
+for _, name in ipairs({
+    "Cuirassier",
+    "Runner",
+    "Shambler",
+    "Zapper",
+    "Bomber",
+    "Igniter"
+}) do
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.BackgroundColor3 = DARK
+    button.BorderSizePixel = 0
+    button.Text = name
+    button.TextColor3 = RED
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 11
+    button.Parent = calloutList
+    corner(button, 5)
+
+    button.Activated:Connect(function()
+        local character = Player.Character
+        local remote = character and character:FindFirstChild(
+            "TriggerVoice"
+        )
+
+        if remote and remote:IsA("RemoteEvent") then
+            remote:FireServer("CalloutZombie", name)
+        end
+    end)
+end
+
+toggle("Callout GUI", function(v)
+    State.Callout = v
+    calloutFrame.Visible = v
+end)
+
+--=================================================
+-- HIDE / SHOW
+--=================================================
+
+local hide = Instance.new("TextButton")
+hide.Name = "HideButton"
+hide.Size = UDim2.fromOffset(90, 31)
+hide.Position = UDim2.new(0, 10, 0.5, 0)
+hide.BackgroundColor3 = RED
+hide.BorderSizePixel = 0
+hide.Text = "HIDE GUI"
+hide.TextColor3 = WHITE
+hide.TextSize = 11
+hide.Font = Enum.Font.GothamBold
+hide.Parent = gui
+corner(hide, 6)
+
+hide.Activated:Connect(function()
+    main.Visible = not main.Visible
+    hide.Text = main.Visible and "HIDE GUI" or "SHOW GUI"
+end)
+
+--=================================================
+-- DRAG SUPPORT
+--=================================================
+
+local function makeDraggable(handle, target)
+    local dragging = false
+    local startInput
+    local startPosition
+    local activeTouch
+
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+
+            dragging = true
+            startInput = input.Position
+            startPosition = target.Position
+
+            if input.UserInputType == Enum.UserInputType.Touch then
+                activeTouch = input
+            end
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    activeTouch = nil
+                end
+            end)
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if not dragging then
+            return
+        end
+
+        if activeTouch
+            and input.UserInputType == Enum.UserInputType.Touch
+            and input ~= activeTouch then
+            return
+        end
+
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+
+            local delta = input.Position - startInput
+
+            target.Position = UDim2.new(
+                startPosition.X.Scale,
+                startPosition.X.Offset + delta.X,
+                startPosition.Y.Scale,
+                startPosition.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+makeDraggable(title, main)
+makeDraggable(hide, hide)
+makeDraggable(calloutTitle, calloutFrame)
+
+--=================================================
+-- ZOMBIE ESP SCANNER
+--=================================================
+
+local function removeZombieESP(obj)
+    local highlight = zombieHighlights[obj]
+
+    if highlight then
+        highlight:Destroy()
+        zombieHighlights[obj] = nil
+    end
+end
+
+local function scanZombieESP()
+    local camera = Workspace:FindFirstChild("Camera")
+        or Workspace.CurrentCamera
+
+    if not camera then
+        return
+    end
+
+    for _, child in ipairs(camera:GetChildren()) do
+        if child.Name ~= "m_Zombie" then
+            continue
+        end
+
+        local orig = child:FindFirstChild("Orig")
+        local zombie = orig and orig.Value
+        local color
+
+        if zombie then
+            local zombieHumanoid = zombie:FindFirstChild("Zombie")
+
+            if State.Runner
+                and zombieHumanoid
+                and zombieHumanoid.WalkSpeed > 20 then
+
+                color = Color3.fromRGB(255, 0, 0)
+
+            elseif State.Bomber and child:FindFirstChild("Barrel") then
+                color = Color3.fromRGB(65, 105, 225)
+
+            elseif State.Cuirassier and child:FindFirstChild("Sword") then
+                color = Color3.fromRGB(65, 105, 225)
+
+            elseif State.Zapper and child:FindFirstChild("Axe") then
+                color = Color3.fromRGB(255, 0, 255)
+            end
+        end
+
+        if color then
+            local highlight = zombieHighlights[child]
+
+            if not highlight or not highlight.Parent then
+                highlight = Instance.new("Highlight")
+                highlight.Name = "ESP_Highlight"
+                highlight.Adornee = child
+                highlight.Parent = child
+                zombieHighlights[child] = highlight
+            end
+
+            highlight.FillColor = color
+            highlight.OutlineColor = color
+        else
+            removeZombieESP(child)
+        end
+    end
+
+    for obj in pairs(zombieHighlights) do
+        if not obj.Parent then
+            removeZombieESP(obj)
+        end
+    end
+end
+
+local espTimer = 0
+
+RunService.Heartbeat:Connect(function(dt)
+    espTimer += dt
+
+    if espTimer >= 0.5 then
+        espTimer = 0
+        scanZombieESP()
+    end
+end)
+
+print("holy AI slop🫩✌️🥀")
