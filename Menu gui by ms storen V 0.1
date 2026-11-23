@@ -596,7 +596,7 @@ local zombieFolder = workspace:WaitForChild("Zombies")
 local function addOuterHitbox(zombie)
     if not zombie or not zombie.Parent then return end
     local hrp = zombie:FindFirstChild("Head")
-    if hrp and not zombie:FindFirstChild("Head") then
+    if hrp and not zombie:FindFirstChild("OuterHitbox") then
         pcall(function()
             local part = Instance.new("Part")
             part.Name = "OuterHitbox"
