@@ -2364,7 +2364,7 @@ makeSlider(cf, "Max Shove/Cycle", 1, 50, 30, function(v) setMaxShovePerCycle(v) 
 makeSlider(cf, "Kill Aura Radius", 0, 20, 13, function(v) killAuraRadius=v end, nextOrder())
 makeSlider(cf, "Bayonet Kill Radius", 5, 25, 13, function(v) bayonetKillAuraRadius=v; if bayonetKillAuraToggled then toggleBayonetKillAura(false); task.wait(0.1); toggleBayonetKillAura(true) end end, nextOrder())
 makeToggle(cf, "Zombie Hitbox Expander", false, function(v) toggleHitboxExpander(v) end, nextOrder())
-makeSlider(cf, "Hitbox Size", 1, 30, 10, function(v) setHitboxSize(v) end, nextOrder())
+makeSlider(cf, "Hitbox Size", 1, 30, 30, function(v) setHitboxSize(v) end, nextOrder())
 
 -- ========== AUTO TAB ==========
 o=0
